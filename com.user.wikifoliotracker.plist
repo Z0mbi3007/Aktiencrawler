@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.wikifoliotracker</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/tim/Antigravity Projects/AktienCrawler/venv/bin/python</string>
+        <string>/Users/tim/Antigravity Projects/AktienCrawler/tracker.py</string>
+        <string>--daemon</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/tim/Antigravity Projects/AktienCrawler</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/tim/Antigravity Projects/AktienCrawler/data/tracker.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/tim/Antigravity Projects/AktienCrawler/data/tracker.stderr.log</string>
+</dict>
+</plist>
