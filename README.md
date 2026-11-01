@@ -6,7 +6,7 @@ Automatischer Tracker für das Wikifolio **NoLimits (`wfnolimits`)** (oder jedes
 
 ## ☁️ 24/7 Dauerbetrieb via GitHub Actions (Ohne dass dein Mac an ist)
 
-Das Repository enthält einen automatisierten Workflow (`.github/workflows/tracker.yml`), der von GitHub kostenlos alle 15 Minuten während der Börsenzeiten (Mo–Fr, 08:00–22:00 Uhr) in der Cloud ausgeführt wird.
+Das Repository enthält einen automatisierten Workflow (`.github/workflows/tracker.yml`), der von GitHub kostenlos alle 2 Stunden während der Börsenzeiten (Mo–Fr, 08:00–22:00 Uhr) in der Cloud ausgeführt wird.
 
 ### Einrichtung in 2 Schritten:
 

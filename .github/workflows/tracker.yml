@@ -2,8 +2,8 @@ name: Wikifolio Depot Tracker
 
 on:
   schedule:
-    # Montag bis Freitag alle 15 Minuten zwischen 06:00 und 21:00 UTC (entspricht Handelszeit 08:00 - 22:00 Uhr in Deutschland)
-    - cron: '*/15 6-21 * * 1-5'
+    # Montag bis Freitag alle 2 Stunden zwischen 06:00 und 20:00 UTC (ca. 08:00 - 22:00 Uhr in Deutschland)
+    - cron: '0 6,8,10,12,14,16,18,20 * * 1-5'
   workflow_dispatch:
     inputs:
       ignore_market_hours:

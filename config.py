@@ -23,7 +23,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 
 # Tracking Konfiguration
-CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "900"))  # Standard: 15 Minuten
+CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "7200"))  # Standard: 2 Stunden
 MARKET_HOURS_ONLY = os.getenv("MARKET_HOURS_ONLY", "true").lower() in ("true", "1", "yes")
 ENABLE_MACOS_NOTIFICATIONS = os.getenv("ENABLE_MACOS_NOTIFICATIONS", "true").lower() in ("true", "1", "yes")
 
