@@ -41,13 +41,15 @@ def is_market_open() -> bool:
     if not MARKET_HOURS_ONLY:
         return True
 
-    # Zeitzone MEZ/MESZ (UTC+1 im Winter, UTC+2 im Sommer)
-    now_utc = datetime.now(timezone.utc)
-    # Einfache Approximation für Berlin/CET (UTC+2 im Sommer, UTC+1 im Winter)
-    # März bis Oktober ist i.d.R. UTC+2
-    is_dst = 3 <= now_utc.month <= 10
-    tz_offset = timedelta(hours=2 if is_dst else 1)
-    local_time = now_utc + tz_offset
+    try:
+        from zoneinfo import ZoneInfo
+        local_time = datetime.now(ZoneInfo("Europe/Berlin"))
+    except Exception:
+        # Fallback bei fehlenden Zeitzonendaten
+        now_utc = datetime.now(timezone.utc)
+        is_dst = 3 <= now_utc.month <= 10
+        tz_offset = timedelta(hours=2 if is_dst else 1)
+        local_time = now_utc + tz_offset
 
     # Wochentag: Montag (0) bis Freitag (4)
     weekday = local_time.weekday()

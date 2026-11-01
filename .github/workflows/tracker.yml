@@ -1,0 +1,80 @@
+name: Wikifolio Depot Tracker
+
+on:
+  schedule:
+    # Montag bis Freitag alle 15 Minuten zwischen 06:00 und 21:00 UTC (entspricht Handelszeit 08:00 - 22:00 Uhr in Deutschland)
+    - cron: '*/15 6-21 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      ignore_market_hours:
+        description: 'Börsenzeiten ignorieren (auch am Wochenende / nachts ausführen)'
+        required: false
+        type: boolean
+        default: false
+      test_notify_only:
+        description: 'Nur Testnachricht an Telegram senden'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: wikifolio-tracker
+  cancel-in-progress: false
+
+jobs:
+  check-portfolio:
+    name: Check Wikifolio Portfolio
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tracker
+        env:
+          WIKIFOLIO_EMAIL: ${{ secrets.WIKIFOLIO_EMAIL }}
+          WIKIFOLIO_PASSWORD: ${{ secrets.WIKIFOLIO_PASSWORD }}
+          WIKIFOLIO_ID: ${{ secrets.WIKIFOLIO_ID || '485772de-e808-4451-8a53-1fc0378d3b87' }}
+          WIKIFOLIO_SYMBOL: ${{ secrets.WIKIFOLIO_SYMBOL || 'wfnolimits' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MARKET_HOURS_ONLY: ${{ github.event.inputs.ignore_market_hours != 'true' }}
+          ENABLE_MACOS_NOTIFICATIONS: 'false'
+        run: |
+          if [ "${{ github.event.inputs.test_notify_only }}" = "true" ]; then
+            echo "Running test notification..."
+            python tracker.py --test-notify
+          elif [ "${{ github.event.inputs.ignore_market_hours }}" = "true" ]; then
+            echo "Running tracker (ignoring market hours)..."
+            python tracker.py --once --ignore-market-hours
+          else
+            echo "Running tracker..."
+            python tracker.py --once
+          fi
+
+      - name: Commit & push updated portfolio state
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A data/
+          if ! git diff --staged --quiet; then
+            echo "Found changes in portfolio state. Committing..."
+            git commit -m "chore: update portfolio state [skip ci]"
+            git pull --rebase origin main || true
+            git push origin main
+          else
+            echo "No state changes to commit."
+          fi

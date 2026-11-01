@@ -4,7 +4,33 @@ Automatischer Tracker für das Wikifolio **NoLimits (`wfnolimits`)** (oder jedes
 
 ---
 
-## ⚡ Schnellstart in 3 Schritten
+## ☁️ 24/7 Dauerbetrieb via GitHub Actions (Ohne dass dein Mac an ist)
+
+Das Repository enthält einen automatisierten Workflow (`.github/workflows/tracker.yml`), der von GitHub kostenlos alle 15 Minuten während der Börsenzeiten (Mo–Fr, 08:00–22:00 Uhr) in der Cloud ausgeführt wird.
+
+### Einrichtung in 2 Schritten:
+
+1. **Repository Secrets hinterlegen:**
+   Gehe auf GitHub in dein Repository: **`Settings` → `Secrets and variables` → `Actions` → `New repository secret`** und lege folgende 4 Secrets an:
+
+   | Secret Name | Wert |
+   |---|---|
+   | `WIKIFOLIO_EMAIL` | Deine Wikifolio E-Mail-Adresse |
+   | `WIKIFOLIO_PASSWORD` | Dein Wikifolio Passwort |
+   | `TELEGRAM_BOT_TOKEN` | Dein Telegram Bot Token von @BotFather |
+   | `TELEGRAM_CHAT_ID` | Deine Telegram Chat-ID |
+
+2. **Workflow testen & aktivieren:**
+   - Gehe im GitHub-Repository auf den Reiter **`Actions`**.
+   - Wähle links **`Wikifolio Depot Tracker`** aus.
+   - Klicke auf **`Run workflow`**:
+     - Zum Testen kannst du z. B. ein Häkchen bei *„Nur Testnachricht an Telegram senden“* oder *„Börsenzeiten ignorieren“* setzen.
+     - Klicke auf den grünen Button **`Run workflow`**.
+   - Fertig! Ab jetzt läuft der Tracker vollautomatisch nach Zeitplan in der Cloud, ohne dass dein Mac eingeschaltet sein muss.
+
+---
+
+## ⚡ Schnellstart in 3 Schritten (Lokal auf dem Mac)
 
 ### 1. Telegram-Bot erstellen (2 Minuten)
 1. Öffne Telegram und suche nach **[@BotFather](https://t.me/botfather)**.

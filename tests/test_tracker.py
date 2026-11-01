@@ -135,5 +135,12 @@ class TestPortfolioTracking(unittest.TestCase):
         self.assertEqual(parsed["positions"]["US88160R1014"]["percentage"], 84.5)
 
 
+    def test_market_hours_filter(self):
+        import config
+        # When MARKET_HOURS_ONLY is False, should always be open
+        config.MARKET_HOURS_ONLY = False
+        self.assertTrue(config.is_market_open())
+
+
 if __name__ == "__main__":
     unittest.main()

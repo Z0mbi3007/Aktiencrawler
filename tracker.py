@@ -235,7 +235,11 @@ def main():
     parser.add_argument("--status", action="store_true", help="Zeigt das aktuelle Depot in der Konsole an")
     parser.add_argument("--test-notify", action="store_true", help="Sendet eine Testnachricht an Telegram")
     parser.add_argument("--reset", action="store_true", help="Löscht den gespeicherten Zustand (erzwingt neue Initialisierung)")
+    parser.add_argument("--ignore-market-hours", action="store_true", help="Führt die Prüfung auch außerhalb der Handelszeiten durch")
     args = parser.parse_args()
+
+    if args.ignore_market_hours:
+        config.MARKET_HOURS_ONLY = False
 
     # Reset
     if args.reset:

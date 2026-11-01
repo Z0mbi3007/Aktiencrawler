@@ -11,8 +11,9 @@ __pycache__/
 *$py.class
 *.so
 
-# Local tracker data & state
-data/
+# Local tracker data & state (session cookies and logs stay local)
+data/session_cookie.json
+data/*.log
 
 # Mac specific
 .DS_Store
