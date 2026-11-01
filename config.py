@@ -73,12 +73,12 @@ def validate_config(require_telegram: bool = True) -> list[str]:
     """
     errors = []
     if not WIKIFOLIO_EMAIL or WIKIFOLIO_EMAIL == "deine-email@beispiel.de":
-        errors.append("WIKIFOLIO_EMAIL ist nicht in der .env gesetzt.")
+        errors.append("WIKIFOLIO_EMAIL ist weder in .env noch als GitHub Secret gesetzt.")
     if not WIKIFOLIO_PASSWORD or WIKIFOLIO_PASSWORD == "dein-geheimes-passwort":
-        errors.append("WIKIFOLIO_PASSWORD ist nicht in der .env gesetzt.")
+        errors.append("WIKIFOLIO_PASSWORD ist weder in .env noch als GitHub Secret gesetzt.")
     if require_telegram:
         if not TELEGRAM_BOT_TOKEN or "ABCdefGh" in TELEGRAM_BOT_TOKEN:
-            errors.append("TELEGRAM_BOT_TOKEN ist nicht in der .env gesetzt.")
+            errors.append("TELEGRAM_BOT_TOKEN ist weder in .env noch als GitHub Secret gesetzt.")
         if not TELEGRAM_CHAT_ID or TELEGRAM_CHAT_ID == "123456789":
-            errors.append("TELEGRAM_CHAT_ID ist nicht in der .env gesetzt.")
+            errors.append("TELEGRAM_CHAT_ID ist weder in .env noch als GitHub Secret gesetzt.")
     return errors

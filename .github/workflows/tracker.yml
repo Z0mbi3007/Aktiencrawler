@@ -45,12 +45,12 @@ jobs:
 
       - name: Run tracker
         env:
-          WIKIFOLIO_EMAIL: ${{ secrets.WIKIFOLIO_EMAIL }}
-          WIKIFOLIO_PASSWORD: ${{ secrets.WIKIFOLIO_PASSWORD }}
-          WIKIFOLIO_ID: ${{ secrets.WIKIFOLIO_ID || '485772de-e808-4451-8a53-1fc0378d3b87' }}
-          WIKIFOLIO_SYMBOL: ${{ secrets.WIKIFOLIO_SYMBOL || 'wfnolimits' }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WIKIFOLIO_EMAIL: ${{ secrets.WIKIFOLIO_EMAIL || vars.WIKIFOLIO_EMAIL }}
+          WIKIFOLIO_PASSWORD: ${{ secrets.WIKIFOLIO_PASSWORD || vars.WIKIFOLIO_PASSWORD }}
+          WIKIFOLIO_ID: ${{ secrets.WIKIFOLIO_ID || vars.WIKIFOLIO_ID || '485772de-e808-4451-8a53-1fc0378d3b87' }}
+          WIKIFOLIO_SYMBOL: ${{ secrets.WIKIFOLIO_SYMBOL || vars.WIKIFOLIO_SYMBOL || 'wfnolimits' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || vars.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || vars.TELEGRAM_CHAT_ID }}
           MARKET_HOURS_ONLY: ${{ github.event.inputs.ignore_market_hours != 'true' }}
           ENABLE_MACOS_NOTIFICATIONS: 'false'
         run: |

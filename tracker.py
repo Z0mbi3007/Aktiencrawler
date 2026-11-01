@@ -256,7 +256,13 @@ def main():
     if args.test_notify:
         print("Sende Testnachricht an Telegram...")
         if not notifier.has_telegram:
-            print("❌ Fehler: TELEGRAM_BOT_TOKEN oder TELEGRAM_CHAT_ID fehlen in .env.")
+            missing = []
+            if not config.TELEGRAM_BOT_TOKEN:
+                missing.append("TELEGRAM_BOT_TOKEN")
+            if not config.TELEGRAM_CHAT_ID:
+                missing.append("TELEGRAM_CHAT_ID")
+            print(f"❌ Fehler: Folgende Einstellungen fehlen: {', '.join(missing) if missing else 'Ungültiges Token'}")
+            print("👉 Bitte in den GitHub Repository Secrets (oder in der lokalen .env) eintragen.")
             sys.exit(1)
         success = notifier.send_telegram(
             "🔔 <b>Testnachricht vom Wikifolio-Tracker</b>\n\n"
