@@ -121,6 +121,30 @@ MARKET_HOURS_ONLY=true
 | `./run.sh --status` | Zeigt das aktuelle Wikifolio-Depot im Terminal an |
 | `./run.sh --test-notify` | Sendet eine Testnachricht an Telegram |
 | `./run.sh --reset` | Löscht den lokalen Depot-Cache (erzwingt neue Initialisierung) |
+| `./run.sh --dashboard` | Startet das interaktive **Aktien-Simulations- & Risiko-Dashboard** im Browser |
+
+---
+
+## 🔮 Interaktives Aktien-Simulations- & Risiko-Dashboard
+
+Mit dem integrierten Dashboard (`dashboard.py` & `simulator_engine.py`) kannst du beliebige Aktien weltweit (per Ticker, ISIN oder Firmenname) sowie alle Positionen aus deinem getrackten Wikifolio-Depot analysieren und in die Zukunft simulieren:
+
+```bash
+./run.sh --dashboard
+```
+
+### Funktionen im Überblick:
+1. **🔮 Zukunfts-Simulation & Szenario-Planer:**
+   - Monte-Carlo-Simulation (500 Zufallspfade) mit Bull-Case (90. Perzentil), Base-Case (Median) und Bear-Case (10. Perzentil) Korridoren.
+   - Frei wählbarer Zeithorizont (1 Monat bis 2 Jahre) sowie Was-wäre-wenn-Szenarien (Bull-Markt, Rezessions-/Marktschock oder eigene Rendite-/Volatilitäts-Regler).
+2. **📐 Chart-Methoden & Technische Analyse:**
+   - Interaktiver Candlestick-Chart mit gleitenden Durchschnitten (`SMA 20`, `SMA 50`, `SMA 200`), **Bollinger Bändern**, **linearem Regressions-Trendkanal**, automatischen **Support- & Resistance-Zonen** sowie **Fibonacci-Retracements**.
+   - Subplots und Signalauswertung für **RSI (14)** und **MACD (12, 26, 9)**.
+3. **🛡️ AAA Qualitäts- & Risiko-Rating:**
+   - Synthetisches Bonitäts- und Risiko-Scoring von **AAA bis CCC/C** basierend auf 4 Säulen: *Bilanz & Solvenz (Netto-Cash, Debt/Equity, Current Ratio)*, *Ertragskraft & Free Cashflow*, *Kurs- & Drawdown-Stabilität* sowie *Marktkapitalisierung*.
+   - Quantitative Risikokennzahlen wie **Value at Risk (VaR 95%)**, **Maximaler Drawdown (Underwater-Chart)**, **Sharpe & Sortino Ratio** und **Beta-Faktor**.
+4. **🧭 Strategieberater & Taktischer Handlungsplan:**
+   - Kombiniert Charttechnik, fundamentales Risiko-Rating und Analysten-Kursziele zu einem Gesamturteil inkl. Stärken/Schwächen-Profil, Einstiegszonen und Volatilitäts-Stop-Loss (`2x ATR`).
 
 ---
 

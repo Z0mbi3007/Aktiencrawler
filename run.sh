@@ -12,4 +12,9 @@ if [ ! -d "venv" ]; then
     ./venv/bin/pip install -r requirements.txt
 fi
 
+if [ "$1" = "--dashboard" ]; then
+    shift
+    exec ./venv/bin/streamlit run dashboard.py "$@"
+fi
+
 exec ./venv/bin/python tracker.py "$@"

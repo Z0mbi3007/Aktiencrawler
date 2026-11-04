@@ -141,6 +141,77 @@ class TestPortfolioTracking(unittest.TestCase):
         config.MARKET_HOURS_ONLY = False
         self.assertTrue(config.is_market_open())
 
+    def test_simulator_engine_pipeline(self):
+        import numpy as np
+        import pandas as pd
+        from simulator_engine import (
+            calculate_technical_indicators,
+            evaluate_risk_and_rating,
+            simulate_future_scenarios,
+            generate_advisory_report,
+            resolve_query_to_ticker,
+        )
+
+        # ISIN mapping check
+        self.assertEqual(resolve_query_to_ticker("US0378331005"), "AAPL")
+        self.assertEqual(resolve_query_to_ticker("NVDA"), "NVDA")
+
+        # Synthetische 250-Tage OHLCV Historie erzeugen
+        dates = pd.bdate_range("2025-01-01", periods=250)
+        rng = np.random.default_rng(123)
+        close_prices = 100.0 * np.cumprod(1.0 + rng.normal(0.0008, 0.015, size=250))
+        df = pd.DataFrame(
+            {
+                "Open": close_prices * 0.995,
+                "High": close_prices * 1.012,
+                "Low": close_prices * 0.988,
+                "Close": close_prices,
+                "Volume": rng.integers(1_000_000, 5_000_000, size=250),
+            },
+            index=dates,
+        )
+
+        mock_info = {
+            "beta": 1.05,
+            "debtToEquity": 45.0,
+            "currentRatio": 1.8,
+            "profitMargins": 0.24,
+            "returnOnEquity": 0.32,
+            "freeCashflow": 50_000_000_000,
+            "totalCash": 60_000_000_000,
+            "totalDebt": 40_000_000_000,
+            "marketCap": 2_500_000_000_000,
+            "targetMeanPrice": float(close_prices[-1] * 1.15),
+            "numberOfAnalystOpinions": 28,
+        }
+
+        tech = calculate_technical_indicators(df)
+        self.assertIn("tech_score", tech)
+        self.assertTrue(0 <= tech["tech_score"] <= 100)
+        self.assertGreater(len(tech["signals"]), 0)
+
+        risk = evaluate_risk_and_rating(df, mock_info)
+        self.assertEqual(risk["rating_grade"], "AAA")
+        self.assertGreaterEqual(risk["rating_score"], 86.0)
+
+        sim = simulate_future_scenarios(df, tech, risk, horizon_days=63, num_simulations=100)
+        self.assertEqual(len(sim["future_dates"]), 64)
+        self.assertGreater(sim["summary"]["bull_price"], sim["summary"]["bear_price"])
+
+        adv = generate_advisory_report("AAPL", mock_info, tech, risk, sim)
+        self.assertIn("composite_score", adv)
+        self.assertIn("verdict", adv)
+        self.assertIn("tactical_levels", adv)
+
+        # Chart-Builder aus dashboard.py testen
+        from dashboard import build_technical_chart, build_simulation_chart
+        fig_tech = build_technical_chart(tech["df"], tech, "AAPL", "USD", True, True, True, True)
+        self.assertIsNotNone(fig_tech)
+        fig_sim = build_simulation_chart(df, sim, risk, "AAPL", "USD")
+        self.assertIsNotNone(fig_sim)
+
+
+
 
 if __name__ == "__main__":
     unittest.main()
