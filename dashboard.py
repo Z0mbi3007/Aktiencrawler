@@ -600,13 +600,83 @@ def main():
 
     st.divider()
 
-    # --- HAUPT-TABS ---
-    tab_sim, tab_tech, tab_risk, tab_adv = st.tabs([
+    # --- HAUPT-TABS (inkl. iPhone Kompakt-Überblick als 1. Reiter) ---
+    tab_mobile, tab_sim, tab_tech, tab_risk, tab_adv = st.tabs([
+        "📱 iPhone Kompakt-Check",
         "🔮 Zukunfts-Simulation & Szenarien",
         "📐 Chart-Methoden & Technische Analyse",
         "🛡️ AAA Risiko-Rating & Fundamentaldaten",
         "🧭 KI-Strategieberater & Handlungsplan",
     ])
+
+    # =========================================================================
+    # TAB 0: IPHONE KOMPAKT-CHECK (Alles auf einer Karte für unterwegs)
+    # =========================================================================
+    with tab_mobile:
+        st.markdown(
+            f"""
+            <div style="border-radius: 14px; padding: 18px 20px; background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid rgba(148,163,184,0.2); margin-bottom: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <div style="font-size: 0.8rem; opacity: 0.75; text-transform: uppercase;">Executive Summary • {symbol}</div>
+                        <div style="font-size: 1.45rem; font-weight: 800; color: {advisory['verdict_color']};">{advisory['verdict']}</div>
+                    </div>
+                    <div style="background: {risk_data['rating_color']}; color: #fff; padding: 6px 14px; border-radius: 10px; font-weight: 800; font-size: 1.25rem;">
+                        Rating: {risk_data['rating_grade']} ({risk_data['rating_score']:.0f}/100)
+                    </div>
+                </div>
+                <p style="margin: 10px 0 0 0; font-size: 0.96rem; opacity: 0.92;">{advisory['summary_text']}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Kompakte 2x2 / 3er Übersicht für schmale Displays
+        m_c1, m_c2, m_c3 = st.columns(3)
+        with m_c1:
+            st.info(
+                f"**🔮 Simulation ({horizon_label})**\n\n"
+                f"• 🐂 Bull (90%): **{sim_data['summary']['bull_price']:.2f} {currency}** ({sim_data['summary']['bull_return_pct']:+.1f}%)\n"
+                f"• ⚖️ Median (50%): **{sim_data['summary']['base_price']:.2f} {currency}** ({sim_data['summary']['base_return_pct']:+.1f}%)\n"
+                f"• 🐻 Bear (10%): **{sim_data['summary']['bear_price']:.2f} {currency}** ({sim_data['summary']['bear_return_pct']:+.1f}%)\n"
+                f"• 🎲 Gewinn-Chance: **{sim_data['summary']['prob_profit_pct']:.1f}%**"
+            )
+        with m_c2:
+            tl = advisory["tactical_levels"]
+            st.success(
+                f"**🎯 Taktische Handelsmarken**\n\n"
+                f"• 🟢 Einstiegszone: **{tl['entry_zone']} {currency}**\n"
+                f"• 🚧 1. Widerstand: **{tl['first_resistance']} {currency}**\n"
+                f"• 🛑 Stop-Loss (2x ATR): **{tl['atr_stop_loss']} {currency}**\n"
+                f"• 🎯 Analysten-Ziel: **{tl['analyst_target']}**"
+            )
+        with m_c3:
+            m = risk_data["metrics"]
+            st.warning(
+                f"**🛡️ Risiko- & Trend-Check**\n\n"
+                f"• 📐 Technik-Score: **{tech_data['tech_score']}/100** (RSI: {tech_data['rsi']:.1f})\n"
+                f"• 📏 SMA 200: **{tech_data['sma200']:.2f} {currency}**\n"
+                f"• 📉 Volatilität: **{m['annual_volatility_pct']:.1f}% p.a.**\n"
+                f"• 🌊 Max Drawdown: **{m['max_drawdown_pct']:.1f}%** (VaR 95%: {m['var_95_daily_pct']:.1f}%)"
+            )
+
+        st.markdown("##### 📈 Kompakter Simulations- & Trend-Chart")
+        st.plotly_chart(
+            build_simulation_chart(df_hist, sim_data, risk_data, symbol, currency),
+            use_container_width=True,
+            key="mobile_sim_chart",
+        )
+
+        # Wichtigste Stärken & Risiken direkt untereinander
+        mc_s, mc_r = st.columns(2)
+        with mc_s:
+            st.markdown("**✅ Wichtigste Stärken:**")
+            for s in advisory["strengths"][:3]:
+                st.markdown(f"- 🟢 {s}")
+        with mc_r:
+            st.markdown("**⚠️ Wichtigste Risiken:**")
+            for r in advisory["risks"][:3]:
+                st.markdown(f"- 🔴 {r}")
 
     # =========================================================================
     # TAB 1: ZUKUNFTS-SIMULATION & SZENARIEN

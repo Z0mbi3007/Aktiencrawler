@@ -12,15 +12,33 @@ DATA_DIR.mkdir(exist_ok=True)
 ENV_FILE = BASE_DIR / ".env"
 load_dotenv(ENV_FILE)
 
+
+def _get_secret(key: str, default: str = "") -> str:
+    """
+    Liest einen Konfigurationswert aus Umgebungsvariablen (.env / GitHub Actions)
+    oder alternativ aus Streamlit Cloud Secrets (st.secrets), falls verfügbar.
+    """
+    val = os.getenv(key, "").strip()
+    if val:
+        return val
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and key in st.secrets:
+            return str(st.secrets[key]).strip()
+    except Exception:
+        pass
+    return default
+
+
 # Wikifolio Konfiguration
-WIKIFOLIO_EMAIL = os.getenv("WIKIFOLIO_EMAIL", "").strip()
-WIKIFOLIO_PASSWORD = os.getenv("WIKIFOLIO_PASSWORD", "").strip()
-WIKIFOLIO_ID = os.getenv("WIKIFOLIO_ID", "485772de-e808-4451-8a53-1fc0378d3b87").strip()
-WIKIFOLIO_SYMBOL = os.getenv("WIKIFOLIO_SYMBOL", "wfnolimits").strip()
+WIKIFOLIO_EMAIL = _get_secret("WIKIFOLIO_EMAIL", "")
+WIKIFOLIO_PASSWORD = _get_secret("WIKIFOLIO_PASSWORD", "")
+WIKIFOLIO_ID = _get_secret("WIKIFOLIO_ID", "485772de-e808-4451-8a53-1fc0378d3b87")
+WIKIFOLIO_SYMBOL = _get_secret("WIKIFOLIO_SYMBOL", "wfnolimits")
 
 # Telegram Konfiguration
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+TELEGRAM_BOT_TOKEN = _get_secret("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = _get_secret("TELEGRAM_CHAT_ID", "")
 
 # Tracking Konfiguration
 CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "7200"))  # Standard: 2 Stunden
