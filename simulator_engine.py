@@ -9,8 +9,9 @@ import config
 
 logger = logging.getLogger("SimulatorEngine")
 
-# Bekannte ISIN -> Ticker Zuordnungen als schneller Cache/Fallback
+# Bekannte ISIN -> Ticker Zuordnungen als schneller Cache/Fallback (Aktien & beliebte ETFs)
 KNOWN_ISIN_MAP = {
+    # Aktien
     "US0378331005": "AAPL",
     "US5949181045": "MSFT",
     "US67066G1040": "NVDA",
@@ -23,78 +24,221 @@ KNOWN_ISIN_MAP = {
     "DE0008404005": "ALV.DE",
     "DE0007030009": "RHM.DE",
     "DE000A1EWWW0": "ADS.DE",
+    "DE000BAY0017": "BAYN.DE",
+    "DE000BASF111": "BAS.DE",
+    "DE0005557508": "DTE.DE",
+    "DE0007100000": "MBG.DE",
+    "DE0005190003": "BMW.DE",
+    "DE0007664039": "VOW3.DE",
+    "DE0008430026": "MUV2.DE",
+    "DE000ENAG999": "EOAN.DE",
+    "DE0005810055": "DB1.DE",
+    "DE0005140008": "DBK.DE",
+    "DE000CBK1001": "CBK.DE",
+    "DE0006231004": "IFX.DE",
     "NL0010273215": "ASML.AS",
     "US0079031078": "AMD",
     "US11135F1012": "AVGO",
     "US64110L1061": "NFLX",
     "US69608A1088": "PLTR",
+    # Beliebte ETFs
+    "IE00B4L5Y983": "EUNL.DE",  # iShares Core MSCI World UCITS ETF
+    "IE00B3RBWM25": "VGWL.DE",  # Vanguard FTSE All-World (Dist)
+    "IE00BK5BQT80": "VWCE.DE",  # Vanguard FTSE All-World (Acc)
+    "IE00B5BMR087": "SXR8.DE",  # iShares Core S&P 500 UCITS ETF
+    "IE00B4L5YC18": "IS3N.DE",  # iShares Core MSCI EM IMI UCITS ETF
+    "DE0005933931": "EXS1.DE",  # iShares Core DAX UCITS ETF
+    "IE00B53SZB19": "SXRV.DE",  # iShares NASDAQ 100 UCITS ETF
+    "LU0290358497": "XEON.DE",  # Xtrackers II EUR Overnight Rate Swap
+    "DE000A0H08M3": "EXXT.DE",  # iShares NASDAQ-100 UCITS ETF (DE)
+}
+
+OPENFIGI_EXCH_TO_YAHOO = {
+    "GR": ".DE",
+    "GY": ".DE",
+    "GF": ".F",
+    "GM": ".MU",
+    "GS": ".SG",
+    "GD": ".DU",
+    "GH": ".HM",
+    "US": "",
+    "UW": "",
+    "UN": "",
+    "UA": "",
+    "LN": ".L",
+    "NA": ".AS",
+    "FP": ".PA",
+    "IM": ".MI",
+    "SW": ".SW",
+    "VX": ".SW",
 }
 
 
-def resolve_query_to_ticker(query: str) -> str:
+def _lookup_isin_via_openfigi(isin: str) -> List[Dict[str, str]]:
     """
-    Löst einen Ticker, eine ISIN oder einen Firmennamen über die Yahoo Finance Search API
-    in das passende Yahoo-Finance-Tickersymbol auf.
+    Fragt die kostenlose OpenFIGI-API ab, um eine ISIN (Aktie oder ETF)
+    in offizielle Börsenticker (bevorzugt XETRA/Deutschland, sonst US/London/Amsterdam) aufzulösen.
     """
-    q = query.strip().upper()
-    if not q:
-        return "AAPL"
-
-    if q in KNOWN_ISIN_MAP:
-        return KNOWN_ISIN_MAP[q]
-
-    # Falls es schon wie ein Standard-Ticker aussieht (z.B. AAPL, SAP.DE, BTC-USD) und keine ISIN (12 Zeichen) ist
-    is_isin = len(q) == 12 and q[:2].isalpha() and q[2:11].isalnum()
-    if not is_isin and " " not in q and len(q) <= 9:
-        return q
-
-    # Suche über Yahoo Finance Autocomplete/Search API
     try:
-        url = "https://query2.finance.yahoo.com/v1/finance/search"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-        }
-        resp = requests.get(url, params={"q": query.strip(), "quotesCount": 5, "newsCount": 0}, headers=headers, timeout=8)
+        resp = requests.post(
+            "https://api.openfigi.com/v3/mapping",
+            json=[{"idType": "ID_ISIN", "idValue": isin.strip().upper()}],
+            headers={"Content-Type": "application/json"},
+            timeout=6,
+        )
         if resp.status_code == 200:
-            data = resp.json()
-            quotes = data.get("quotes", [])
-            for item in quotes:
-                symbol = item.get("symbol")
-                if symbol:
-                    return symbol
+            payload = resp.json()
+            if payload and isinstance(payload, list) and "data" in payload[0]:
+                items = payload[0]["data"]
+                results = []
+                seen = set()
+                # Sortiere so, dass deutsche/europäische/US Hauptbörsen zuerst kommen
+                priority_order = ["GY", "GR", "GF", "GM", "GS", "UW", "UN", "US", "NA", "LN", "FP", "IM", "SW"]
+                items_sorted = sorted(
+                    items,
+                    key=lambda x: priority_order.index(x.get("exchCode", "")) if x.get("exchCode", "") in priority_order else 99,
+                )
+                for item in items_sorted:
+                    exch = item.get("exchCode", "")
+                    ticker = item.get("ticker", "")
+                    if not ticker or exch not in OPENFIGI_EXCH_TO_YAHOO:
+                        continue
+                    # OpenFIGI liefert für manche deutsche ETFs z.B. DAXEX statt EXS1, daher prüfen wir später die Gültigkeit
+                    suffix = OPENFIGI_EXCH_TO_YAHOO[exch]
+                    yf_sym = f"{ticker}{suffix}"
+                    if yf_sym not in seen:
+                        seen.add(yf_sym)
+                        sec_type = "ETF" if item.get("securityType") in ("ETP", "ETF", "Open-End Fund") else "EQUITY"
+                        results.append({
+                            "symbol": yf_sym,
+                            "name": item.get("name") or yf_sym,
+                            "exchange": exch,
+                            "type": sec_type,
+                        })
+                return results
     except Exception as e:
-        logger.warning(f"Suche nach '{query}' über Yahoo API fehlgeschlagen: {e}")
-
-    return q
+        logger.warning(f"OpenFIGI ISIN-Lookup für {isin} fehlgeschlagen: {e}")
+    return []
 
 
 def search_tickers(query: str) -> List[Dict[str, str]]:
     """
-    Sucht passende Aktien über Yahoo Finance und gibt eine Liste mit Symbol, Name, Börse zurück.
+    Sucht passende Aktien, ETFs und Indizes über Yahoo Finance (und OpenFIGI bei ISINs)
+    und gibt eine Liste mit Symbol, Name, Börse und Typ zurück.
     """
     if not query or len(query.strip()) < 2:
         return []
+    q = query.strip()
+    q_upper = q.upper()
+    results: List[Dict[str, str]] = []
+    seen_symbols = set()
+
+    # 1. Prüfen ob bekannte ISIN
+    if q_upper in KNOWN_ISIN_MAP:
+        sym = KNOWN_ISIN_MAP[q_upper]
+        results.append({
+            "symbol": sym,
+            "name": f"{sym} (ISIN: {q_upper})",
+            "exchange": "Haupthandelsplatz",
+            "type": "ETF / Aktie",
+        })
+        seen_symbols.add(sym)
+
+    # 2. Suche über Yahoo Finance Search API
     try:
         url = "https://query2.finance.yahoo.com/v1/finance/search"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
         }
-        resp = requests.get(url, params={"q": query.strip(), "quotesCount": 8, "newsCount": 0}, headers=headers, timeout=8)
+        resp = requests.get(
+            url,
+            params={"q": q, "quotesCount": 12, "newsCount": 0},
+            headers=headers,
+            timeout=8,
+        )
         if resp.status_code == 200:
             quotes = resp.json().get("quotes", [])
-            results = []
             for item in quotes:
-                if item.get("quoteType") in ("EQUITY", "ETF", "INDEX", "CRYPTOCURRENCY"):
+                q_type = item.get("quoteType", "")
+                sym = item.get("symbol", "")
+                if sym and sym not in seen_symbols and q_type in ("EQUITY", "ETF", "MUTUALFUND", "INDEX", "CRYPTOCURRENCY"):
+                    seen_symbols.add(sym)
                     results.append({
-                        "symbol": item.get("symbol", ""),
-                        "name": item.get("longname") or item.get("shortname") or item.get("symbol", ""),
+                        "symbol": sym,
+                        "name": item.get("longname") or item.get("shortname") or sym,
                         "exchange": item.get("exchDisp") or item.get("exchange", ""),
-                        "type": item.get("quoteType", "")
+                        "type": q_type,
                     })
-            return results
     except Exception as e:
-        logger.warning(f"Ticker-Suche fehlgeschlagen: {e}")
-    return []
+        logger.warning(f"Yahoo Ticker-Suche fehlgeschlagen: {e}")
+
+    # 3. Fallback über yfinance.Search falls HTTP-Aufruf leer war
+    if not results:
+        try:
+            yf_search = yf.Search(q, max_results=10)
+            for item in getattr(yf_search, "quotes", []) or []:
+                sym = item.get("symbol", "")
+                q_type = item.get("quoteType", "EQUITY")
+                if sym and sym not in seen_symbols:
+                    seen_symbols.add(sym)
+                    results.append({
+                        "symbol": sym,
+                        "name": item.get("longname") or item.get("shortname") or sym,
+                        "exchange": item.get("exchDisp") or item.get("exchange", ""),
+                        "type": q_type,
+                    })
+        except Exception as e:
+            logger.warning(f"yfinance.Search Fallback fehlgeschlagen: {e}")
+
+    # 4. Falls Eingabe wie eine ISIN aussieht (12 Zeichen, z.B. DE000BAY0017) und noch nichts gefunden wurde: OpenFIGI
+    is_isin = len(q_upper) == 12 and q_upper[:2].isalpha() and q_upper[2:11].isalnum()
+    if is_isin and not results:
+        figi_results = _lookup_isin_via_openfigi(q_upper)
+        for item in figi_results:
+            if item["symbol"] not in seen_symbols:
+                seen_symbols.add(item["symbol"])
+                results.append(item)
+
+    return results
+
+
+def resolve_query_to_ticker(query: str) -> str:
+    """
+    Löst einen Ticker, eine ISIN (z.B. DE000BAY0017, IE00B4L5Y983) oder einen Firmen-/ETF-Namen
+    (z.B. 'Bayer', 'MSCI World', 'Rheinmetall') intelligent in das passende Yahoo-Finance-Tickersymbol auf.
+    """
+    q = query.strip()
+    q_upper = q.upper()
+    if not q_upper:
+        return "AAPL"
+
+    if q_upper in KNOWN_ISIN_MAP:
+        return KNOWN_ISIN_MAP[q_upper]
+
+    is_isin = len(q_upper) == 12 and q_upper[:2].isalpha() and q_upper[2:11].isalnum()
+
+    # Wenn es ein expliziter Börsenticker mit Punkt/Bindestrich ist (z.B. BAYN.DE, RHM.MU, BTC-USD)
+    # oder ein kurzes Großbuchstaben-Kürzel (1-4 Buchstaben wie AAPL, NVDA, SAP):
+    # Nur wenn der Nutzer ein Wort wie "Bayer" oder "Allianz" (>4 Buchstaben ohne Punkt) oder eine ISIN eingibt,
+    # führen wir zuerst die Namens-/ISIN-Suche aus!
+    looks_like_explicit_ticker = (
+        not is_isin
+        and " " not in q
+        and ("." in q or "-" in q or len(q) <= 4)
+    )
+    if looks_like_explicit_ticker:
+        return q_upper
+
+    # Für ISINs, mehrteilige Suchbegriffe ("MSCI World") und Firmennamen ("Bayer", "Siemens"):
+    matches = search_tickers(q)
+    if matches:
+        # Bevorzuge XETRA (.DE) oder Haupthandelsplätze, falls mehrere Treffer vorliegen
+        for m in matches:
+            if m["symbol"].endswith(".DE"):
+                return m["symbol"]
+        return matches[0]["symbol"]
+
+    return q_upper
 
 
 def load_wikifolio_positions(fetch_live: bool = False) -> List[Dict[str, Any]]:
@@ -530,7 +674,9 @@ def evaluate_risk_and_rating(df: pd.DataFrame, info: Dict[str, Any]) -> Dict[str
     current_drawdown = float(drawdowns.iloc[-1])
 
     # 2. Fundamentaldaten aus Yahoo Finance extrahieren
-    beta = info.get("beta")
+    quote_type = info.get("quoteType", "EQUITY")
+    is_etf = quote_type in ("ETF", "MUTUALFUND")
+    beta = info.get("beta") or info.get("beta3Year")
     debt_to_equity = info.get("debtToEquity")  # oft in % angegeben bei Yahoo (z.B. 150 = 1.5x)
     current_ratio = info.get("currentRatio")
     quick_ratio = info.get("quickRatio")
@@ -541,10 +687,11 @@ def evaluate_risk_and_rating(df: pd.DataFrame, info: Dict[str, Any]) -> Dict[str
     free_cashflow = info.get("freeCashflow")
     total_cash = info.get("totalCash")
     total_debt = info.get("totalDebt")
-    market_cap = info.get("marketCap")
+    market_cap = info.get("marketCap") or info.get("totalAssets")
     trailing_pe = info.get("trailingPE")
     forward_pe = info.get("forwardPE")
-    dividend_yield = info.get("dividendYield")
+    dividend_yield = info.get("dividendYield") or info.get("yield")
+    expense_ratio = info.get("annualReportExpenseRatio") or info.get("netExpenseRatio")
 
     # Analysten-Daten
     target_mean = info.get("targetMeanPrice")
@@ -555,101 +702,142 @@ def evaluate_risk_and_rating(df: pd.DataFrame, info: Dict[str, Any]) -> Dict[str
     num_analysts = info.get("numberOfAnalystOpinions") or 0
 
     # 3. Synthetisches Qualitäts- & Risiko-Rating (AAA bis C) berechnen
-    # Wir bewerten 4 Säulen:
-    # A) Bilanz & Verschuldung (Solvenz / Kreditrisiko)
-    # B) Profitabilität & Cashflow-Stärke
-    # C) Kursstabilität & Drawdown-Resistenz
-    # D) Marktgröße & Kapitalmarktzugang
+    # Wir bewerten 4 Säulen (angepasst für Einzelaktien vs. breit gestreute ETFs):
     score_pillars: List[Dict[str, Any]] = []
     total_points = 0.0
     max_points = 0.0
 
-    # Säule 1: Bilanz & Verschuldung (max 30 Punkte)
-    balance_pts = 15.0  # Neutraler Startwert falls Daten fehlen
-    balance_details = []
-    if total_cash is not None and total_debt is not None:
-        if total_cash >= total_debt:
-            balance_pts = 28.0
-            balance_details.append("Netto-Cash-Position (Barbestand übersteigt Gesamtverschuldung)")
+    if is_etf:
+        # ETF-Säule 1: Diversifikation & Sondervermögen-Schutz (max 30 Punkte)
+        div_pts = 27.0
+        div_details = ["Rechtlich geschütztes Sondervermögen (kein Emittenten-Insolvenzrisiko), breite Index-Streuung"]
+        if annual_vol < 18.0:
+            div_pts = 29.0
+            div_details.append("Sehr geringe Schwankungsbreite durch breite Diversifikation")
+        score_pillars.append({
+            "name": "Diversifikation & Struktur (ETF)",
+            "score": round(div_pts / 30.0 * 100),
+            "details": "; ".join(div_details),
+        })
+        total_points += div_pts
+        max_points += 30.0
+
+        # ETF-Säule 2: Rendite-Risiko-Effizienz / Sharpe & Trend (max 30 Punkte)
+        eff_pts = 18.0
+        eff_details = []
+        if sharpe_ratio >= 0.8:
+            eff_pts = 27.0
+            eff_details.append(f"Starkes Rendite-Risiko-Verhältnis (Sharpe Ratio: {sharpe_ratio:.2f})")
+        elif sharpe_ratio >= 0.3:
+            eff_pts = 22.0
+            eff_details.append(f"Solides Rendite-Risiko-Verhältnis (Sharpe Ratio: {sharpe_ratio:.2f})")
+        elif sharpe_ratio >= 0.0:
+            eff_pts = 16.0
+            eff_details.append(f"Moderate historische Risikoprämie (Sharpe Ratio: {sharpe_ratio:.2f})")
+        else:
+            eff_pts = 9.0
+            eff_details.append(f"Negative historische Überschussrendite (Sharpe Ratio: {sharpe_ratio:.2f})")
+
+        if expense_ratio is not None:
+            ter_pct = float(expense_ratio) * 100.0 if float(expense_ratio) < 1 else float(expense_ratio)
+            eff_details.append(f"Kostenquote (TER): {ter_pct:.2f}% p.a.")
+            if ter_pct <= 0.25:
+                eff_pts = min(30.0, eff_pts + 3.0)
+
+        score_pillars.append({
+            "name": "Rendite-Effizienz & Kosten",
+            "score": round(eff_pts / 30.0 * 100),
+            "details": "; ".join(eff_details),
+        })
+        total_points += eff_pts
+        max_points += 30.0
+    else:
+        # Säule 1: Bilanz & Verschuldung für Aktien (max 30 Punkte)
+        balance_pts = 15.0  # Neutraler Startwert falls Daten fehlen
+        balance_details = []
+        if total_cash is not None and total_debt is not None:
+            if total_cash >= total_debt:
+                balance_pts = 28.0
+                balance_details.append("Netto-Cash-Position (Barbestand übersteigt Gesamtverschuldung)")
+            elif debt_to_equity is not None:
+                if debt_to_equity < 50:
+                    balance_pts = 25.0
+                    balance_details.append(f"Niedriger Verschuldungsgrad (Debt/Equity: {debt_to_equity:.1f}%)")
+                elif debt_to_equity < 120:
+                    balance_pts = 19.0
+                    balance_details.append(f"Moderater Verschuldungsgrad (Debt/Equity: {debt_to_equity:.1f}%)")
+                elif debt_to_equity < 250:
+                    balance_pts = 12.0
+                    balance_details.append(f"Erhöhte Verschuldung (Debt/Equity: {debt_to_equity:.1f}%)")
+                else:
+                    balance_pts = 5.0
+                    balance_details.append(f"Hohe Verschuldung (Debt/Equity: {debt_to_equity:.1f}%)")
         elif debt_to_equity is not None:
-            if debt_to_equity < 50:
+            if debt_to_equity < 60:
                 balance_pts = 25.0
-                balance_details.append(f"Niedriger Verschuldungsgrad (Debt/Equity: {debt_to_equity:.1f}%)")
-            elif debt_to_equity < 120:
-                balance_pts = 19.0
-                balance_details.append(f"Moderater Verschuldungsgrad (Debt/Equity: {debt_to_equity:.1f}%)")
-            elif debt_to_equity < 250:
-                balance_pts = 12.0
-                balance_details.append(f"Erhöhte Verschuldung (Debt/Equity: {debt_to_equity:.1f}%)")
+                balance_details.append(f"Solide Bilanzrelation (Debt/Equity: {debt_to_equity:.1f}%)")
+            elif debt_to_equity < 150:
+                balance_pts = 17.0
+                balance_details.append(f"Normale Verschuldung (Debt/Equity: {debt_to_equity:.1f}%)")
             else:
-                balance_pts = 5.0
-                balance_details.append(f"Hohe Verschuldung (Debt/Equity: {debt_to_equity:.1f}%)")
-    elif debt_to_equity is not None:
-        if debt_to_equity < 60:
-            balance_pts = 25.0
-            balance_details.append(f"Solide Bilanzrelation (Debt/Equity: {debt_to_equity:.1f}%)")
-        elif debt_to_equity < 150:
-            balance_pts = 17.0
-            balance_details.append(f"Normale Verschuldung (Debt/Equity: {debt_to_equity:.1f}%)")
-        else:
-            balance_pts = 8.0
-            balance_details.append(f"Hoher Fremdkapitalanteil (Debt/Equity: {debt_to_equity:.1f}%)")
+                balance_pts = 8.0
+                balance_details.append(f"Hoher Fremdkapitalanteil (Debt/Equity: {debt_to_equity:.1f}%)")
 
-    if current_ratio is not None:
-        if current_ratio >= 1.5:
-            balance_pts = min(30.0, balance_pts + 3.0)
-            balance_details.append(f"Starke kurzfristige Liquidität (Current Ratio: {current_ratio:.2f})")
-        elif current_ratio < 0.9:
-            balance_pts = max(0.0, balance_pts - 4.0)
-            balance_details.append(f"Knappe kurzfristige Liquidität (Current Ratio: {current_ratio:.2f})")
+        if current_ratio is not None:
+            if current_ratio >= 1.5:
+                balance_pts = min(30.0, balance_pts + 3.0)
+                balance_details.append(f"Starke kurzfristige Liquidität (Current Ratio: {current_ratio:.2f})")
+            elif current_ratio < 0.9:
+                balance_pts = max(0.0, balance_pts - 4.0)
+                balance_details.append(f"Knappe kurzfristige Liquidität (Current Ratio: {current_ratio:.2f})")
 
-    if not balance_details:
-        balance_details.append("Keine detaillierten Bilanzdaten gemeldet (neutral gewichtet)")
+        if not balance_details:
+            balance_details.append("Keine detaillierten Bilanzdaten gemeldet (neutral gewichtet)")
 
-    score_pillars.append({
-        "name": "Bilanz & Solvenz",
-        "score": round(balance_pts / 30.0 * 100),
-        "details": "; ".join(balance_details)
-    })
-    total_points += balance_pts
-    max_points += 30.0
+        score_pillars.append({
+            "name": "Bilanz & Solvenz",
+            "score": round(balance_pts / 30.0 * 100),
+            "details": "; ".join(balance_details)
+        })
+        total_points += balance_pts
+        max_points += 30.0
 
-    # Säule 2: Profitabilität & Cashflow (max 30 Punkte)
-    prof_pts = 15.0
-    prof_details = []
-    if profit_margins is not None:
-        pm_pct = profit_margins * 100.0
-        if pm_pct >= 20:
-            prof_pts = 26.0
-            prof_details.append(f"Exzellente Nettomarge ({pm_pct:.1f}%)")
-        elif pm_pct >= 10:
-            prof_pts = 21.0
-            prof_details.append(f"Gute Nettomarge ({pm_pct:.1f}%)")
-        elif pm_pct > 0:
-            prof_pts = 14.0
-            prof_details.append(f"Positive Nettomarge ({pm_pct:.1f}%)")
-        else:
-            prof_pts = 5.0
-            prof_details.append(f"Unternehmen schreibt aktuell Verluste (Marge: {pm_pct:.1f}%)")
+        # Säule 2: Profitabilität & Cashflow für Aktien (max 30 Punkte)
+        prof_pts = 15.0
+        prof_details = []
+        if profit_margins is not None:
+            pm_pct = profit_margins * 100.0
+            if pm_pct >= 20:
+                prof_pts = 26.0
+                prof_details.append(f"Exzellente Nettomarge ({pm_pct:.1f}%)")
+            elif pm_pct >= 10:
+                prof_pts = 21.0
+                prof_details.append(f"Gute Nettomarge ({pm_pct:.1f}%)")
+            elif pm_pct > 0:
+                prof_pts = 14.0
+                prof_details.append(f"Positive Nettomarge ({pm_pct:.1f}%)")
+            else:
+                prof_pts = 5.0
+                prof_details.append(f"Unternehmen schreibt aktuell Verluste (Marge: {pm_pct:.1f}%)")
 
-    if free_cashflow is not None:
-        if free_cashflow > 0:
-            prof_pts = min(30.0, prof_pts + 4.0)
-            prof_details.append("Positiver Free Cashflow")
-        else:
-            prof_pts = max(0.0, prof_pts - 5.0)
-            prof_details.append("Negativer Free Cashflow (Cash-Burn)")
+        if free_cashflow is not None:
+            if free_cashflow > 0:
+                prof_pts = min(30.0, prof_pts + 4.0)
+                prof_details.append("Positiver Free Cashflow")
+            else:
+                prof_pts = max(0.0, prof_pts - 5.0)
+                prof_details.append("Negativer Free Cashflow (Cash-Burn)")
 
-    if not prof_details:
-        prof_details.append("Keine Margendaten verfügbar (Standardgewichtung)")
+        if not prof_details:
+            prof_details.append("Keine Margendaten verfügbar (Standardgewichtung)")
 
-    score_pillars.append({
-        "name": "Ertragskraft & Cashflow",
-        "score": round(prof_pts / 30.0 * 100),
-        "details": "; ".join(prof_details)
-    })
-    total_points += prof_pts
-    max_points += 30.0
+        score_pillars.append({
+            "name": "Ertragskraft & Cashflow",
+            "score": round(prof_pts / 30.0 * 100),
+            "details": "; ".join(prof_details)
+        })
+        total_points += prof_pts
+        max_points += 30.0
 
     # Säule 3: Volatilitäts- & Drawdown-Stabilität (max 25 Punkte)
     stab_pts = 12.5
@@ -682,28 +870,42 @@ def evaluate_risk_and_rating(df: pd.DataFrame, info: Dict[str, Any]) -> Dict[str
     total_points += stab_pts
     max_points += 25.0
 
-    # Säule 4: Marktstellung & Kapitalisierung (max 15 Punkte)
-    cap_pts = 8.0
+    # Säule 4: Marktstellung & Kapitalisierung / Fondsvolumen (max 15 Punkte)
+    cap_pts = 11.0 if is_etf else 8.0
     cap_details = []
     if market_cap is not None:
         cap_b = market_cap / 1e9
-        if cap_b >= 200:
-            cap_pts = 15.0
-            cap_details.append(f"Mega-Cap Marktführer ({cap_b:.0f} Mrd. Börsenwert)")
-        elif cap_b >= 20:
-            cap_pts = 13.0
-            cap_details.append(f" Etablierter Large-Cap ({cap_b:.1f} Mrd. Börsenwert)")
-        elif cap_b >= 2:
-            cap_pts = 9.0
-            cap_details.append(f"Solider Mid-Cap ({cap_b:.1f} Mrd. Börsenwert)")
+        if is_etf:
+            if cap_b >= 5:
+                cap_pts = 15.0
+                cap_details.append(f"Sehr großes Fondsvolumen ({cap_b:.1f} Mrd. AuM – höchste Liquidität)")
+            elif cap_b >= 0.5:
+                cap_pts = 13.0
+                cap_details.append(f"Etabliertes Fondsvolumen ({cap_b:.2f} Mrd. AuM)")
+            elif cap_b >= 0.1:
+                cap_pts = 10.0
+                cap_details.append(f"Solides Fondsvolumen ({cap_b * 1000:.0f} Mio. AuM)")
+            else:
+                cap_pts = 5.0
+                cap_details.append(f"Kleiner ETF ({cap_b * 1000:.0f} Mio. AuM – Schließungsrisiko beachten)")
         else:
-            cap_pts = 4.0
-            cap_details.append(f"Small-Cap mit höherem Liquiditätsrisiko ({cap_b:.2f} Mrd.)")
+            if cap_b >= 200:
+                cap_pts = 15.0
+                cap_details.append(f"Mega-Cap Marktführer ({cap_b:.0f} Mrd. Börsenwert)")
+            elif cap_b >= 20:
+                cap_pts = 13.0
+                cap_details.append(f"Etablierter Large-Cap ({cap_b:.1f} Mrd. Börsenwert)")
+            elif cap_b >= 2:
+                cap_pts = 9.0
+                cap_details.append(f"Solider Mid-Cap ({cap_b:.1f} Mrd. Börsenwert)")
+            else:
+                cap_pts = 4.0
+                cap_details.append(f"Small-Cap mit höherem Liquiditätsrisiko ({cap_b:.2f} Mrd.)")
     else:
-        cap_details.append("Marktkapitalisierung nicht hinterlegt")
+        cap_details.append("Börsenwert / Fondsvolumen nicht gemeldet (Standardgewichtung)")
 
     score_pillars.append({
-        "name": "Marktgröße & Liquidität",
+        "name": "Fondsvolumen & Liquidität" if is_etf else "Marktgröße & Liquidität",
         "score": round(cap_pts / 15.0 * 100),
         "details": "; ".join(cap_details)
     })

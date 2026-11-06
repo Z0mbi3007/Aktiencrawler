@@ -74,6 +74,11 @@ def cached_fetch_stock(query: str, period: str, exchange_suffix: str = "AUTO"):
     return fetch_stock_data(query, period=period, exchange_suffix=exchange_suffix)
 
 
+@st.cache_data(ttl=900, show_spinner=False)
+def cached_search_tickers(query: str):
+    return search_tickers(query)
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def cached_wikifolio_positions(fetch_live: bool = False):
     return load_wikifolio_positions(fetch_live=fetch_live)
@@ -403,19 +408,25 @@ def main():
             wf_positions = cached_wikifolio_positions(fetch_live=True)
             st.toast("Live-Daten von Yahoo Finance & Wikifolio wurden neu geladen!", icon="✅")
 
-        preset_options = ["🔍 Eigene Suche / Beliebige Aktie"]
+        preset_options = ["🔍 Freie Suche (Name, ISIN, ETF oder Ticker)"]
         preset_map = {}
         for pos in wf_positions:
             label = f"💼 {pos['name']} ({pos['percentage']:.1f}%)"
             preset_options.append(label)
             preset_map[label] = pos["isin"] or pos["name"]
 
-        # Beliebte Standard-Aktien ergänzen
+        # Beliebte Standard-Aktien & ETFs ergänzen
         popular_stocks = [
+            ("🌍 iShares Core MSCI World ETF (IE00B4L5Y983)", "EUNL.DE"),
+            ("🌐 Vanguard FTSE All-World ETF (IE00BK5BQT80)", "VWCE.DE"),
+            ("🇺🇸 iShares Core S&P 500 ETF (IE00B5BMR087)", "SXR8.DE"),
+            ("🇩🇪 iShares Core DAX ETF (DE0005933931)", "EXS1.DE"),
+            ("💻 iShares NASDAQ 100 ETF (IE00B53SZB19)", "SXRV.DE"),
             ("🍎 Apple (AAPL)", "AAPL"),
             ("🟢 NVIDIA (NVDA)", "NVDA"),
             ("🪟 Microsoft (MSFT)", "MSFT"),
             ("⚡ Tesla (TSLA)", "TSLA"),
+            ("🇩🇪 Bayer (DE000BAY0017)", "BAYN.DE"),
             ("🇩🇪 SAP (SAP.DE)", "SAP.DE"),
             ("🇩🇪 Rheinmetall (RHM.DE)", "RHM.DE"),
             ("🇩🇪 Siemens (SIE.DE)", "SIE.DE"),
@@ -428,14 +439,53 @@ def main():
             preset_options.append(label)
             preset_map[label] = sym
 
-        selected_preset = st.selectbox("Schnellauswahl (Depot & Favoriten)", options=preset_options, index=1 if len(wf_positions) > 0 else 2)
+        def on_preset_change():
+            sel = st.session_state.get("preset_selector")
+            if sel in preset_map:
+                st.session_state["search_query_input"] = preset_map[sel]
 
-        default_query = preset_map.get(selected_preset, "NVDA")
-        custom_query = st.text_input(
-            "Ticker, ISIN oder Firmenname",
-            value=default_query,
-            help="Beispiele: AAPL, NVDA, SAP.DE, US67066G1040 oder 'Allianz'",
+        if "search_query_input" not in st.session_state:
+            initial_preset = preset_options[1] if len(wf_positions) > 0 else "🟢 NVIDIA (NVDA)"
+            st.session_state["search_query_input"] = preset_map.get(initial_preset, "NVDA")
+
+        st.selectbox(
+            "Schnellauswahl (Depot, ETFs & Favoriten)",
+            options=preset_options,
+            index=0,
+            key="preset_selector",
+            on_change=on_preset_change,
         )
+
+        raw_query = st.text_input(
+            "🔍 Freie Suche: Firmenname, ISIN, ETF oder Ticker",
+            key="search_query_input",
+            placeholder="z.B. DE000BAY0017, Bayer, MSCI World, AAPL...",
+            help="Gib einfach eine ISIN (z.B. DE000BAY0017, IE00B4L5Y983), einen Unternehmens-/ETF-Namen (z.B. Bayer, MSCI World, Vanguard) oder einen Ticker ein und drücke Enter.",
+        )
+
+        # Live-Suchergebnisse anzeigen, wenn nach Name, ETF oder ISIN gesucht wird
+        custom_query = raw_query.strip()
+        if len(custom_query) >= 2:
+            matches = cached_search_tickers(custom_query)
+            if len(matches) > 1:
+                match_labels = []
+                match_map = {}
+                for m in matches:
+                    type_badge = "📦 ETF" if m["type"] in ("ETF", "MUTUALFUND") else "🏢 Aktie"
+                    lbl = f"{type_badge}: {m['name']} ({m['symbol']}) – {m['exchange']}"
+                    match_labels.append(lbl)
+                    match_map[lbl] = m["symbol"]
+                chosen_match = st.selectbox(
+                    f"Gefundene Treffer für '{custom_query}' ({len(matches)}):",
+                    options=match_labels,
+                    index=0,
+                    help="Wähle hier das gewünschte Wertpapier aus den Suchtreffern aus.",
+                )
+                custom_query = match_map[chosen_match]
+            elif len(matches) == 1:
+                m = matches[0]
+                st.caption(f"✅ Gefunden: **{m['name']}** (`{m['symbol']}` • {m['type']})")
+                custom_query = m["symbol"]
 
         exchange_options = {
             ".MU": "🌙 München / gettex (.MU) – Abendhandel bis 22 Uhr",
