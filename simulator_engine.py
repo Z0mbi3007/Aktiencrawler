@@ -303,10 +303,63 @@ def apply_exchange_preference(symbol: str, exchange_suffix: str) -> str:
     return symbol
 
 
-def fetch_stock_data(ticker_or_isin: str, period: str = "2y", exchange_suffix: str = "AUTO") -> Dict[str, Any]:
+def get_fx_rate(source_currency: str, target_currency: str) -> float:
+    """
+    Ermittelt den aktuellen Wechselkurs von source_currency nach target_currency
+    über Yahoo Finance (z.B. USDEUR=X oder EURUSD=X).
+    """
+    src = (source_currency or "EUR").upper().strip()
+    tgt = (target_currency or "EUR").upper().strip()
+
+    # Britische Pence (GBp / GBX) zuerst in GBP behandeln
+    gbp_factor = 1.0
+    if source_currency in ("GBp", "GBX"):
+        src = "GBP"
+        gbp_factor = 0.01
+
+    if src == tgt:
+        return gbp_factor
+
+    pair_symbol = f"{src}{tgt}=X"
+    try:
+        fx_hist = yf.Ticker(pair_symbol).history(period="5d")
+        if fx_hist is not None and not fx_hist.empty:
+            rate = float(fx_hist["Close"].dropna().iloc[-1])
+            if rate > 0:
+                return rate * gbp_factor
+    except Exception as e:
+        logger.warning(f"Konnte Wechselkurs für {pair_symbol} nicht direkt abrufen: {e}")
+
+    # Fallback über den inversen Wechselkurs
+    inv_symbol = f"{tgt}{src}=X"
+    try:
+        fx_hist = yf.Ticker(inv_symbol).history(period="5d")
+        if fx_hist is not None and not fx_hist.empty:
+            inv_rate = float(fx_hist["Close"].dropna().iloc[-1])
+            if inv_rate > 0:
+                return (1.0 / inv_rate) * gbp_factor
+    except Exception as e:
+        logger.warning(f"Konnte inversen Wechselkurs für {inv_symbol} nicht abrufen: {e}")
+
+    # Statische Sicherheits-Fallbacks falls Yahoo FX kurzzeitig nicht antwortet
+    fallback_to_eur = {"USD": 0.92, "GBP": 1.18, "CHF": 1.06, "JPY": 0.0061, "CAD": 0.67, "AUD": 0.60, "EUR": 1.0}
+    if src in fallback_to_eur and tgt in fallback_to_eur:
+        rate_eur = fallback_to_eur[src] / fallback_to_eur[tgt]
+        return rate_eur * gbp_factor
+
+    return 1.0 * gbp_factor
+
+
+def fetch_stock_data(
+    ticker_or_isin: str,
+    period: str = "2y",
+    exchange_suffix: str = "AUTO",
+    target_currency: str = "EUR",
+) -> Dict[str, Any]:
     """
     Lädt historische Kursdaten (OHLCV) sowie Fundamental- & Analystendaten von Yahoo Finance.
-    Unterstützt die Auswahl des deutschen Handelsplatzes (XETRA .DE, München/gettex .MU, Stuttgart .SG etc.).
+    Unterstützt die Auswahl des deutschen Handelsplatzes (XETRA .DE, München/gettex .MU, Stuttgart .SG etc.)
+    sowie die automatische Währungsumrechnung (Standard: EUR, umschaltbar auf USD oder Originalwährung).
     """
     base_symbol = resolve_query_to_ticker(ticker_or_isin)
     symbol = apply_exchange_preference(base_symbol, exchange_suffix)
@@ -342,7 +395,7 @@ def fetch_stock_data(ticker_or_isin: str, period: str = "2y", exchange_suffix: s
 
     info: Dict[str, Any] = {}
     try:
-        info = ticker_obj.info or {}
+        info = dict(ticker_obj.info or {})
         # Falls auf einer Regionalbörse (.MU/.SG) wichtige Fundamental-/Analystendaten fehlen, vom Hauptticker (.DE) ergänzen
         if symbol != base_symbol and not info.get("targetMeanPrice") and not info.get("marketCap"):
             base_info = yf.Ticker(base_symbol).info or {}
@@ -352,11 +405,60 @@ def fetch_stock_data(ticker_or_isin: str, period: str = "2y", exchange_suffix: s
     except Exception as e:
         logger.warning(f"Konnte Fundamentaldaten (info) für {symbol} nicht vollständig abrufen: {e}")
 
+    source_currency = info.get("currency") or "USD"
+    financial_currency = info.get("financialCurrency") or source_currency
+
+    # Währungsumrechnung falls gewünscht (z.B. EUR oder USD)
+    fx_rate = 1.0
+    final_currency = source_currency
+    if target_currency and target_currency.upper() in ("EUR", "USD"):
+        final_currency = target_currency.upper()
+        if source_currency.upper() != final_currency or source_currency in ("GBp", "GBX"):
+            fx_rate = get_fx_rate(source_currency, final_currency)
+            for col in ("Open", "High", "Low", "Close"):
+                if col in hist.columns:
+                    hist[col] = hist[col] * fx_rate
+
+            # Kursbezogene Felder in info umrechnen (Analysten-Kursziele, 52W-Hoch/Tief, Marktkapitalisierung)
+            price_fields = [
+                "currentPrice",
+                "regularMarketPrice",
+                "previousClose",
+                "targetMeanPrice",
+                "targetHighPrice",
+                "targetLowPrice",
+                "targetMedianPrice",
+                "fiftyTwoWeekHigh",
+                "fiftyTwoWeekLow",
+                "marketCap",
+                "totalAssets",
+            ]
+            for pf in price_fields:
+                if info.get(pf) is not None:
+                    try:
+                        info[pf] = float(info[pf]) * fx_rate
+                    except Exception:
+                        pass
+
+        # Bilanzfelder (Cash, Debt, Free Cashflow) von financial_currency in final_currency umrechnen
+        fin_fx_rate = get_fx_rate(financial_currency, final_currency) if financial_currency.upper() != final_currency else 1.0
+        for bf in ("totalCash", "totalDebt", "freeCashflow", "totalRevenue", "ebitda"):
+            if info.get(bf) is not None:
+                try:
+                    info[bf] = float(info[bf]) * fin_fx_rate
+                except Exception:
+                    pass
+
+        info["currency"] = final_currency
+
     return {
         "symbol": symbol,
         "base_symbol": base_symbol,
         "history": hist,
         "info": info,
+        "source_currency": source_currency,
+        "display_currency": final_currency,
+        "fx_rate": fx_rate,
     }
 
 

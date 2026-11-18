@@ -70,8 +70,8 @@ st.markdown(
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_fetch_stock(query: str, period: str, exchange_suffix: str = "AUTO"):
-    return fetch_stock_data(query, period=period, exchange_suffix=exchange_suffix)
+def cached_fetch_stock(query: str, period: str, exchange_suffix: str = "AUTO", target_currency: str = "EUR"):
+    return fetch_stock_data(query, period=period, exchange_suffix=exchange_suffix, target_currency=target_currency)
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -525,6 +525,19 @@ def main():
             help="XETRA (.DE) schließt um 17:30 Uhr. Für aktuelle Abendkurse (wie auf Onvista/gettex) wähle München/gettex (.MU) oder Stuttgart (.SG).",
         )
 
+        currency_options = {
+            "EUR": "💶 Euro (EUR) – Standard",
+            "USD": "💵 US-Dollar (USD)",
+            "ORIGINAL": "🌐 Original-Börsenwährung",
+        }
+        selected_currency = st.selectbox(
+            "Anzeigewährung (Kurse, Ziele & Simulation)",
+            options=list(currency_options.keys()),
+            format_func=lambda k: currency_options[k],
+            index=0,
+            help="Rechnet alle Kurse, 200-Tage-Linie, Analystenziele und Simulationen automatisch mit dem aktuellen Live-Wechselkurs in Euro (oder USD) um.",
+        )
+
         hist_period = st.selectbox(
             "Historischer Analyse-Zeitraum",
             options=["1y", "2y", "5y"],
@@ -585,7 +598,7 @@ def main():
     # --- DATEN LADEN & ANALYSIEREN ---
     with st.spinner(f"Analysiere Marktdaten, Chartmuster und Risikoprofil für '{custom_query}'..."):
         try:
-            stock_bundle = cached_fetch_stock(custom_query, hist_period, selected_exchange)
+            stock_bundle = cached_fetch_stock(custom_query, hist_period, selected_exchange, selected_currency)
         except Exception as e:
             st.error(f"❌ Konnte Daten für **'{custom_query}'** nicht abrufen: {e}")
             st.info("Tipp: Versuche das offizielle Tickersymbol (z. B. `AAPL`, `SAP.DE`, `NVDA`) oder eine gültige ISIN einzugeben.")
@@ -594,9 +607,11 @@ def main():
         symbol = stock_bundle["symbol"]
         df_hist = stock_bundle["history"]
         info = stock_bundle["info"]
+        source_currency = stock_bundle.get("source_currency", "EUR")
+        fx_rate = stock_bundle.get("fx_rate", 1.0)
 
         company_name = info.get("longName") or info.get("shortName") or symbol
-        currency = info.get("currency", "EUR")
+        currency = stock_bundle.get("display_currency") or info.get("currency", "EUR")
         sector = info.get("sector", "Unbekannter Sektor")
         industry = info.get("industry", "")
 
@@ -619,13 +634,18 @@ def main():
     prev_close = float(df_hist["Close"].iloc[-2]) if len(df_hist) > 1 else curr_price
     day_change_pct = (curr_price / prev_close - 1.0) * 100.0
     last_bar_date = df_hist.index[-1].strftime("%d.%m.%Y")
+    fx_note = (
+        f" (umgerechnet aus {source_currency} mit Kurs {fx_rate:.4f})"
+        if source_currency.upper() != currency.upper()
+        else ""
+    )
 
     head_col1, head_col2 = st.columns([3, 1])
     with head_col1:
         st.title(f"📊 {company_name} (`{symbol}`)")
         st.caption(
             f"Sektor: **{sector}** {f'• Branche: **{industry}**' if industry else ''} "
-            f"• Währung: **{currency}** • Letzter Kursdatenpunkt: **{last_bar_date}** (Quelle: Yahoo Finance Live API)"
+            f"• Währung: **{currency}**{fx_note} • Letzter Kursdatenpunkt: **{last_bar_date}** (Quelle: Yahoo Finance Live API)"
         )
     with head_col2:
         st.metric(
