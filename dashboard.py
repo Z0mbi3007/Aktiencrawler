@@ -127,19 +127,19 @@ def build_technical_chart(df: pd.DataFrame, tech_data: dict, symbol: str, curren
         col=1,
     )
 
-    # Gleitende Durchschnitte
+    # Gleitende Durchschnitte (20 / 50 / 200 Tage-Linie)
     fig.add_trace(
-        go.Scatter(x=df.index, y=df["SMA_20"], name="SMA 20", line=dict(color="#38bdf8", width=1.3)),
+        go.Scatter(x=df.index, y=df["SMA_20"], name="20-Tage-Linie (SMA 20)", line=dict(color="#38bdf8", width=1.3)),
         row=1,
         col=1,
     )
     fig.add_trace(
-        go.Scatter(x=df.index, y=df["SMA_50"], name="SMA 50", line=dict(color="#f59e0b", width=1.6)),
+        go.Scatter(x=df.index, y=df["SMA_50"], name="50-Tage-Linie (SMA 50)", line=dict(color="#f59e0b", width=1.6)),
         row=1,
         col=1,
     )
     fig.add_trace(
-        go.Scatter(x=df.index, y=df["SMA_200"], name="SMA 200", line=dict(color="#a855f7", width=2.0)),
+        go.Scatter(x=df.index, y=df["SMA_200"], name=f"200-Tage-Linie (SMA 200: {tech_data['sma200']:.2f})", line=dict(color="#a855f7", width=2.2)),
         row=1,
         col=1,
     )
@@ -296,6 +296,28 @@ def build_simulation_chart(df: pd.DataFrame, sim_data: dict, risk_data: dict, sy
             line=dict(color="#e2e8f0", width=2.4),
         )
     )
+
+    # 50-Tage- und 200-Tage-Linie (SMA 50 & SMA 200) direkt im Simulations-Chart einzeichnen
+    if "SMA_50" in hist_slice.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=hist_slice.index,
+                y=hist_slice["SMA_50"],
+                name="50-Tage-Linie (SMA 50)",
+                line=dict(color="#f59e0b", width=1.6, dash="dot"),
+            )
+        )
+    if "SMA_200" in hist_slice.columns:
+        sma200_last = hist_slice["SMA_200"].dropna()
+        lbl_200 = f"200-Tage-Linie (SMA 200: {sma200_last.iloc[-1]:.2f})" if len(sma200_last) > 0 else "200-Tage-Linie (SMA 200)"
+        fig.add_trace(
+            go.Scatter(
+                x=hist_slice.index,
+                y=hist_slice["SMA_200"],
+                name=lbl_200,
+                line=dict(color="#a855f7", width=2.3),
+            )
+        )
 
     f_dates = sim_data["future_dates"]
     pcts = sim_data["percentiles"]
@@ -710,9 +732,9 @@ def main():
                 f"• 🌊 Max Drawdown: **{m['max_drawdown_pct']:.1f}%** (VaR 95%: {m['var_95_daily_pct']:.1f}%)"
             )
 
-        st.markdown("##### 📈 Kompakter Simulations- & Trend-Chart")
+        st.markdown("##### 📈 Kompakter Simulations- & Trend-Chart (inkl. 200-Tage-Linie)")
         st.plotly_chart(
-            build_simulation_chart(df_hist, sim_data, risk_data, symbol, currency),
+            build_simulation_chart(tech_data["df"], sim_data, risk_data, symbol, currency),
             use_container_width=True,
             key="mobile_sim_chart",
         )
@@ -734,7 +756,7 @@ def main():
     with tab_sim:
         st.subheader(f"🔮 Zukunfts-Simulation für {symbol} ({sim_data['horizon_days']} Handelstage Projektion)")
         st.plotly_chart(
-            build_simulation_chart(df_hist, sim_data, risk_data, symbol, currency),
+            build_simulation_chart(tech_data["df"], sim_data, risk_data, symbol, currency),
             use_container_width=True,
         )
 
