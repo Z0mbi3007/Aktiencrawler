@@ -437,8 +437,13 @@ def main():
             preset_options.append(label)
             preset_map[label] = pos["isin"] or pos["name"]
 
-        # Beliebte Standard-Aktien & ETFs ergänzen
+        # Beliebte Standard-Aktien, ETFs & Rohstoffe ergänzen
         popular_stocks = [
+            ("🥇 Gold – Weltmarktpreis (GC=F)", "GC=F"),
+            ("🥇 Xetra-Gold ETC (DE000A0S9GB0)", "4GLD.DE"),
+            ("🥈 Silber – Weltmarktpreis (SI=F)", "SI=F"),
+            ("🛢️ Brent Rohöl (BZ=F)", "BZ=F"),
+            ("🔶 Kupfer (HG=F)", "HG=F"),
             ("🌍 iShares Core MSCI World ETF (IE00B4L5Y983)", "EUNL.DE"),
             ("🌐 Vanguard FTSE All-World ETF (IE00BK5BQT80)", "VWCE.DE"),
             ("🇺🇸 iShares Core S&P 500 ETF (IE00B5BMR087)", "SXR8.DE"),
@@ -479,13 +484,13 @@ def main():
         )
 
         raw_query = st.text_input(
-            "🔍 Freie Suche: Firmenname, ISIN, ETF oder Ticker",
+            "🔍 Freie Suche: Name, ISIN, ETF, Rohstoff oder Ticker",
             key="search_query_input",
-            placeholder="z.B. DE000BAY0017, Bayer, MSCI World, AAPL...",
-            help="Gib einfach eine ISIN (z.B. DE000BAY0017, IE00B4L5Y983), einen Unternehmens-/ETF-Namen (z.B. Bayer, MSCI World, Vanguard) oder einen Ticker ein und drücke Enter.",
+            placeholder="z.B. Gold, Silber, Brent, DE000BAY0017, MSCI World, NVDA...",
+            help="Gib einfach einen Rohstoff (z.B. Gold, Silber, Öl, Kupfer), eine ISIN (z.B. DE000BAY0017, DE000A0S9GB0), einen Firmen-/ETF-Namen oder Ticker ein und drücke Enter.",
         )
 
-        # Live-Suchergebnisse anzeigen, wenn nach Name, ETF oder ISIN gesucht wird
+        # Live-Suchergebnisse anzeigen, wenn nach Name, Rohstoff, ETF oder ISIN gesucht wird
         custom_query = raw_query.strip()
         if len(custom_query) >= 2:
             matches = cached_search_tickers(custom_query)
@@ -493,7 +498,14 @@ def main():
                 match_labels = []
                 match_map = {}
                 for m in matches:
-                    type_badge = "📦 ETF" if m["type"] in ("ETF", "MUTUALFUND") else "🏢 Aktie"
+                    if m["type"] == "FUTURE":
+                        type_badge = "🪙 Rohstoff"
+                    elif m["type"] in ("ETF", "MUTUALFUND"):
+                        type_badge = "📦 ETF/ETC"
+                    elif m["type"] == "CRYPTOCURRENCY":
+                        type_badge = "₿ Krypto"
+                    else:
+                        type_badge = "🏢 Aktie"
                     lbl = f"{type_badge}: {m['name']} ({m['symbol']}) – {m['exchange']}"
                     match_labels.append(lbl)
                     match_map[lbl] = m["symbol"]
@@ -501,7 +513,7 @@ def main():
                     f"Gefundene Treffer für '{custom_query}' ({len(matches)}):",
                     options=match_labels,
                     index=0,
-                    help="Wähle hier das gewünschte Wertpapier aus den Suchtreffern aus.",
+                    help="Wähle hier das gewünschte Wertpapier oder den Rohstoff aus den Suchtreffern aus.",
                 )
                 custom_query = match_map[chosen_match]
             elif len(matches) == 1:
@@ -599,35 +611,35 @@ def main():
     with st.spinner(f"Analysiere Marktdaten, Chartmuster und Risikoprofil für '{custom_query}'..."):
         try:
             stock_bundle = cached_fetch_stock(custom_query, hist_period, selected_exchange, selected_currency)
+            symbol = stock_bundle["symbol"]
+            df_hist = stock_bundle["history"]
+            info = stock_bundle["info"]
+            source_currency = stock_bundle.get("source_currency", "EUR")
+            fx_rate = stock_bundle.get("fx_rate", 1.0)
+
+            company_name = info.get("longName") or info.get("shortName") or symbol
+            currency = stock_bundle.get("display_currency") or info.get("currency", "EUR")
+            is_future = info.get("quoteType") == "FUTURE" or symbol.endswith("=F")
+            sector = info.get("sector") or ("Rohstoffe & Edelmetalle" if is_future else "ETF / Fonds" if info.get("quoteType") == "ETF" else "Unbekannter Sektor")
+            industry = info.get("industry", "")
+
+            tech_data = calculate_technical_indicators(df_hist)
+            risk_data = evaluate_risk_and_rating(df_hist, info)
+            sim_data = simulate_future_scenarios(
+                df_hist,
+                tech_data,
+                risk_data,
+                horizon_days=horizon_days,
+                num_simulations=500,
+                custom_drift_override_pct=custom_drift,
+                volatility_multiplier=vol_mult,
+                shock_pct=shock_pct,
+            )
+            advisory = generate_advisory_report(symbol, info, tech_data, risk_data, sim_data)
         except Exception as e:
-            st.error(f"❌ Konnte Daten für **'{custom_query}'** nicht abrufen: {e}")
-            st.info("Tipp: Versuche das offizielle Tickersymbol (z. B. `AAPL`, `SAP.DE`, `NVDA`) oder eine gültige ISIN einzugeben.")
+            st.error(f"❌ Konnte Daten für **'{custom_query}'** nicht analysieren: {e}")
+            st.info("Tipp: Wähle in der Trefferliste einen anderen Handelsplatz (z. B. `GC=F` für Gold, `4GLD.DE` für Xetra-Gold oder `SI=F` für Silber) oder gib ein anderes Symbol ein.")
             return
-
-        symbol = stock_bundle["symbol"]
-        df_hist = stock_bundle["history"]
-        info = stock_bundle["info"]
-        source_currency = stock_bundle.get("source_currency", "EUR")
-        fx_rate = stock_bundle.get("fx_rate", 1.0)
-
-        company_name = info.get("longName") or info.get("shortName") or symbol
-        currency = stock_bundle.get("display_currency") or info.get("currency", "EUR")
-        sector = info.get("sector", "Unbekannter Sektor")
-        industry = info.get("industry", "")
-
-        tech_data = calculate_technical_indicators(df_hist)
-        risk_data = evaluate_risk_and_rating(df_hist, info)
-        sim_data = simulate_future_scenarios(
-            df_hist,
-            tech_data,
-            risk_data,
-            horizon_days=horizon_days,
-            num_simulations=500,
-            custom_drift_override_pct=custom_drift,
-            volatility_multiplier=vol_mult,
-            shock_pct=shock_pct,
-        )
-        advisory = generate_advisory_report(symbol, info, tech_data, risk_data, sim_data)
 
     # --- KOPFZEILE ---
     curr_price = tech_data["current_price"]

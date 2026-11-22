@@ -51,6 +51,80 @@ KNOWN_ISIN_MAP = {
     "IE00B53SZB19": "SXRV.DE",  # iShares NASDAQ 100 UCITS ETF
     "LU0290358497": "XEON.DE",  # Xtrackers II EUR Overnight Rate Swap
     "DE000A0H08M3": "EXXT.DE",  # iShares NASDAQ-100 UCITS ETF (DE)
+    # Rohstoff-ETCs (Gold & Silber)
+    "DE000A0S9GB0": "4GLD.DE",  # Xetra-Gold ETC
+    "DE000EWG2LD7": "EWG2.DE",  # EUWAX Gold II ETC
+    "IE00B4ND3602": "PPFB.DE",  # iShares Physical Gold ETC
+    "IE00B4NCWG09": "PPFD.DE",  # iShares Physical Silver ETC
+}
+
+# Deutsche & englische Suchbegriffe für Rohstoffe (Futures & physische ETCs)
+KNOWN_COMMODITIES: Dict[str, List[Dict[str, str]]] = {
+    "gold": [
+        {"symbol": "GC=F", "name": "Gold (Weltmarkt-Future, Feinunze)", "exchange": "COMEX", "type": "FUTURE"},
+        {"symbol": "4GLD.DE", "name": "Xetra-Gold ETC (DE000A0S9GB0, physisch hinterlegt)", "exchange": "XETRA", "type": "ETF"},
+        {"symbol": "EWG2.DE", "name": "EUWAX Gold II ETC (DE000EWG2LD7)", "exchange": "XETRA", "type": "ETF"},
+        {"symbol": "PPFB.DE", "name": "iShares Physical Gold ETC (IE00B4ND3602)", "exchange": "XETRA", "type": "ETF"},
+    ],
+    "xetra gold": [
+        {"symbol": "4GLD.DE", "name": "Xetra-Gold ETC (DE000A0S9GB0)", "exchange": "XETRA", "type": "ETF"},
+    ],
+    "euwax gold": [
+        {"symbol": "EWG2.DE", "name": "EUWAX Gold II ETC (DE000EWG2LD7)", "exchange": "XETRA", "type": "ETF"},
+    ],
+    "silber": [
+        {"symbol": "SI=F", "name": "Silber (Weltmarkt-Future, Feinunze)", "exchange": "COMEX", "type": "FUTURE"},
+        {"symbol": "PPFD.DE", "name": "iShares Physical Silver ETC (IE00B4NCWG09)", "exchange": "XETRA", "type": "ETF"},
+    ],
+    "silver": [
+        {"symbol": "SI=F", "name": "Silber (Weltmarkt-Future, Feinunze)", "exchange": "COMEX", "type": "FUTURE"},
+        {"symbol": "PPFD.DE", "name": "iShares Physical Silver ETC (IE00B4NCWG09)", "exchange": "XETRA", "type": "ETF"},
+    ],
+    "öl": [
+        {"symbol": "BZ=F", "name": "Brent Rohöl (Nordsee-Referenzpreis, Barrel)", "exchange": "ICE / NYMEX", "type": "FUTURE"},
+        {"symbol": "CL=F", "name": "WTI Rohöl (US-Referenzpreis, Barrel)", "exchange": "NYMEX", "type": "FUTURE"},
+    ],
+    "oel": [
+        {"symbol": "BZ=F", "name": "Brent Rohöl (Nordsee-Referenzpreis, Barrel)", "exchange": "ICE / NYMEX", "type": "FUTURE"},
+        {"symbol": "CL=F", "name": "WTI Rohöl (US-Referenzpreis, Barrel)", "exchange": "NYMEX", "type": "FUTURE"},
+    ],
+    "rohöl": [
+        {"symbol": "BZ=F", "name": "Brent Rohöl (Nordsee-Referenzpreis, Barrel)", "exchange": "ICE / NYMEX", "type": "FUTURE"},
+        {"symbol": "CL=F", "name": "WTI Rohöl (US-Referenzpreis, Barrel)", "exchange": "NYMEX", "type": "FUTURE"},
+    ],
+    "brent": [
+        {"symbol": "BZ=F", "name": "Brent Rohöl (Nordsee-Referenzpreis, Barrel)", "exchange": "ICE / NYMEX", "type": "FUTURE"},
+    ],
+    "wti": [
+        {"symbol": "CL=F", "name": "WTI Rohöl (US-Referenzpreis, Barrel)", "exchange": "NYMEX", "type": "FUTURE"},
+    ],
+    "kupfer": [
+        {"symbol": "HG=F", "name": "Kupfer (Weltmarkt-Future)", "exchange": "COMEX", "type": "FUTURE"},
+    ],
+    "copper": [
+        {"symbol": "HG=F", "name": "Kupfer (Weltmarkt-Future)", "exchange": "COMEX", "type": "FUTURE"},
+    ],
+    "platin": [
+        {"symbol": "PL=F", "name": "Platin (Weltmarkt-Future, Feinunze)", "exchange": "NYMEX", "type": "FUTURE"},
+    ],
+    "platinum": [
+        {"symbol": "PL=F", "name": "Platin (Weltmarkt-Future, Feinunze)", "exchange": "NYMEX", "type": "FUTURE"},
+    ],
+    "palladium": [
+        {"symbol": "PA=F", "name": "Palladium (Weltmarkt-Future, Feinunze)", "exchange": "NYMEX", "type": "FUTURE"},
+    ],
+    "erdgas": [
+        {"symbol": "NG=F", "name": "Erdgas / Natural Gas (Henry Hub Future)", "exchange": "NYMEX", "type": "FUTURE"},
+    ],
+    "weizen": [
+        {"symbol": "ZW=F", "name": "Weizen (CBOT Future)", "exchange": "CBOT", "type": "FUTURE"},
+    ],
+    "kaffee": [
+        {"symbol": "KC=F", "name": "Kaffee Arabica (ICE Future)", "exchange": "ICE", "type": "FUTURE"},
+    ],
+    "kakao": [
+        {"symbol": "CC=F", "name": "Kakao (ICE Future)", "exchange": "ICE", "type": "FUTURE"},
+    ],
 }
 
 OPENFIGI_EXCH_TO_YAHOO = {
@@ -133,7 +207,7 @@ def search_tickers(query: str) -> List[Dict[str, str]]:
     results: List[Dict[str, str]] = []
     seen_symbols = set()
 
-    # 1. Prüfen ob bekannte ISIN
+    # 1. Prüfen ob bekannte ISIN oder Rohstoff-Suchbegriff (Gold, Silber, Öl, Kupfer, etc.)
     if q_upper in KNOWN_ISIN_MAP:
         sym = KNOWN_ISIN_MAP[q_upper]
         results.append({
@@ -143,6 +217,13 @@ def search_tickers(query: str) -> List[Dict[str, str]]:
             "type": "ETF / Aktie",
         })
         seen_symbols.add(sym)
+
+    q_lower = q.lower()
+    if q_lower in KNOWN_COMMODITIES:
+        for item in KNOWN_COMMODITIES[q_lower]:
+            if item["symbol"] not in seen_symbols:
+                seen_symbols.add(item["symbol"])
+                results.append(dict(item))
 
     # 2. Suche über Yahoo Finance Search API
     try:
@@ -161,7 +242,7 @@ def search_tickers(query: str) -> List[Dict[str, str]]:
             for item in quotes:
                 q_type = item.get("quoteType", "")
                 sym = item.get("symbol", "")
-                if sym and sym not in seen_symbols and q_type in ("EQUITY", "ETF", "MUTUALFUND", "INDEX", "CRYPTOCURRENCY"):
+                if sym and sym not in seen_symbols and q_type in ("EQUITY", "ETF", "MUTUALFUND", "INDEX", "CRYPTOCURRENCY", "FUTURE"):
                     seen_symbols.add(sym)
                     results.append({
                         "symbol": sym,
@@ -215,16 +296,17 @@ def resolve_query_to_ticker(query: str) -> str:
     if q_upper in KNOWN_ISIN_MAP:
         return KNOWN_ISIN_MAP[q_upper]
 
+    if q.lower() in KNOWN_COMMODITIES:
+        return KNOWN_COMMODITIES[q.lower()][0]["symbol"]
+
     is_isin = len(q_upper) == 12 and q_upper[:2].isalpha() and q_upper[2:11].isalnum()
 
-    # Wenn es ein expliziter Börsenticker mit Punkt/Bindestrich ist (z.B. BAYN.DE, RHM.MU, BTC-USD)
+    # Wenn es ein expliziter Börsenticker mit Punkt/Bindestrich/Gleichheitszeichen ist (z.B. BAYN.DE, RHM.MU, BTC-USD, GC=F, MGC=F)
     # oder ein kurzes Großbuchstaben-Kürzel (1-4 Buchstaben wie AAPL, NVDA, SAP):
-    # Nur wenn der Nutzer ein Wort wie "Bayer" oder "Allianz" (>4 Buchstaben ohne Punkt) oder eine ISIN eingibt,
-    # führen wir zuerst die Namens-/ISIN-Suche aus!
     looks_like_explicit_ticker = (
         not is_isin
         and " " not in q
-        and ("." in q or "-" in q or len(q) <= 4)
+        and ("." in q or "-" in q or "=" in q or len(q) <= 4)
     )
     if looks_like_explicit_ticker:
         return q_upper
@@ -366,12 +448,16 @@ def fetch_stock_data(
     ticker_obj = yf.Ticker(symbol)
 
     hist = ticker_obj.history(period=period, auto_adjust=True)
-    if (hist is None or hist.empty) and symbol != base_symbol:
-        # Fallback auf das Basis-Symbol (.DE), falls die Regionalbörse für diesen Ticker keine Daten liefert
-        logger.info(f"Keine Daten auf {symbol}, nutze Fallback {base_symbol}")
+    if hist is not None and not hist.empty:
+        hist = hist.dropna(subset=["Close"])
+    if (hist is None or len(hist) < 5) and symbol != base_symbol:
+        # Fallback auf das Basis-Symbol (.DE), falls die Regionalbörse für diesen Ticker keine/zu wenige Daten liefert
+        logger.info(f"Zu wenige Daten auf {symbol}, nutze Fallback {base_symbol}")
         symbol = base_symbol
         ticker_obj = yf.Ticker(symbol)
         hist = ticker_obj.history(period=period, auto_adjust=True)
+        if hist is not None and not hist.empty:
+            hist = hist.dropna(subset=["Close"])
 
     if hist is None or hist.empty:
         # Zweiter Versuch über Namensauflösung falls direktes Symbol leer war
@@ -381,10 +467,14 @@ def fetch_stock_data(
             symbol = apply_exchange_preference(base_symbol, exchange_suffix)
             ticker_obj = yf.Ticker(symbol)
             hist = ticker_obj.history(period=period, auto_adjust=True)
-            if (hist is None or hist.empty) and symbol != base_symbol:
+            if hist is not None and not hist.empty:
+                hist = hist.dropna(subset=["Close"])
+            if (hist is None or len(hist) < 5) and symbol != base_symbol:
                 symbol = base_symbol
                 ticker_obj = yf.Ticker(symbol)
                 hist = ticker_obj.history(period=period, auto_adjust=True)
+                if hist is not None and not hist.empty:
+                    hist = hist.dropna(subset=["Close"])
 
     if hist is None or hist.empty:
         raise ValueError(f"Keine Kursdaten für '{ticker_or_isin}' (aufgelöst als '{symbol}') gefunden.")
@@ -512,21 +602,33 @@ def calculate_technical_indicators(df: pd.DataFrame) -> Dict[str, Any]:
 
     # 6. Linearer Regressions-Trendkanal (über die letzten max. 126 Handelstage ~ 6 Monate)
     lookback = min(len(data), 126)
-    recent_close = close.iloc[-lookback:]
-    x = np.arange(lookback)
-    slope, intercept = np.polyfit(x, recent_close.values, 1)
-    reg_line = intercept + slope * x
-    residuals = recent_close.values - reg_line
-    channel_std = float(np.std(residuals))
+    recent_close = close.iloc[-lookback:].dropna()
+    if len(recent_close) >= 3:
+        x = np.arange(len(recent_close))
+        try:
+            slope, intercept = np.polyfit(x, recent_close.values.astype(float), 1)
+            reg_line = intercept + slope * x
+            residuals = recent_close.values.astype(float) - reg_line
+            channel_std = float(np.std(residuals))
+        except Exception:
+            slope, intercept = 0.0, float(recent_close.iloc[-1])
+            reg_line = np.full(len(recent_close), intercept)
+            channel_std = 0.0
+    else:
+        slope = 0.0
+        intercept = float(close.dropna().iloc[-1]) if not close.dropna().empty else 0.0
+        reg_line = np.full(len(recent_close), intercept)
+        channel_std = 0.0
 
     data["Reg_Center"] = np.nan
     data["Reg_Upper"] = np.nan
     data["Reg_Lower"] = np.nan
 
-    idx_slice = data.index[-lookback:]
-    data.loc[idx_slice, "Reg_Center"] = reg_line
-    data.loc[idx_slice, "Reg_Upper"] = reg_line + 2.0 * channel_std
-    data.loc[idx_slice, "Reg_Lower"] = reg_line - 2.0 * channel_std
+    if len(recent_close) > 0:
+        idx_slice = recent_close.index
+        data.loc[idx_slice, "Reg_Center"] = reg_line
+        data.loc[idx_slice, "Reg_Upper"] = reg_line + 2.0 * channel_std
+        data.loc[idx_slice, "Reg_Lower"] = reg_line - 2.0 * channel_std
 
     # 7. Support- & Resistance-Niveaus (aus lokalen Extrema & 52-Wochen-Spanne)
     window_1y = min(len(data), 252)
@@ -777,7 +879,8 @@ def evaluate_risk_and_rating(df: pd.DataFrame, info: Dict[str, Any]) -> Dict[str
 
     # 2. Fundamentaldaten aus Yahoo Finance extrahieren
     quote_type = info.get("quoteType", "EQUITY")
-    is_etf = quote_type in ("ETF", "MUTUALFUND")
+    is_commodity = (quote_type == "FUTURE") or str(info.get("symbol", "")).endswith("=F")
+    is_etf = quote_type in ("ETF", "MUTUALFUND") or is_commodity
     beta = info.get("beta") or info.get("beta3Year")
     debt_to_equity = info.get("debtToEquity")  # oft in % angegeben bei Yahoo (z.B. 150 = 1.5x)
     current_ratio = info.get("currentRatio")
@@ -810,14 +913,23 @@ def evaluate_risk_and_rating(df: pd.DataFrame, info: Dict[str, Any]) -> Dict[str
     max_points = 0.0
 
     if is_etf:
-        # ETF-Säule 1: Diversifikation & Sondervermögen-Schutz (max 30 Punkte)
-        div_pts = 27.0
-        div_details = ["Rechtlich geschütztes Sondervermögen (kein Emittenten-Insolvenzrisiko), breite Index-Streuung"]
-        if annual_vol < 18.0:
-            div_pts = 29.0
-            div_details.append("Sehr geringe Schwankungsbreite durch breite Diversifikation")
+        # Säule 1: Struktur & Ausfallschutz (ETF vs. Rohstoff) (max 30 Punkte)
+        if is_commodity:
+            div_pts = 26.0
+            div_details = ["Physischer Rohstoff / Sachwert (kein Unternehmens-Insolvenzrisiko, Inflations- & Krisenschutz)"]
+            if annual_vol < 20.0:
+                div_pts = 28.0
+                div_details.append("Relativ stabile Preisentwicklung im Rohstoffvergleich")
+            pillar1_name = "Sachwert & Krisenschutz (Rohstoff)"
+        else:
+            div_pts = 27.0
+            div_details = ["Rechtlich geschütztes Sondervermögen (kein Emittenten-Insolvenzrisiko), breite Index-Streuung"]
+            if annual_vol < 18.0:
+                div_pts = 29.0
+                div_details.append("Sehr geringe Schwankungsbreite durch breite Diversifikation")
+            pillar1_name = "Diversifikation & Struktur (ETF)"
         score_pillars.append({
-            "name": "Diversifikation & Struktur (ETF)",
+            "name": pillar1_name,
             "score": round(div_pts / 30.0 * 100),
             "details": "; ".join(div_details),
         })
